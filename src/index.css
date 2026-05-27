@@ -1,31 +1,51 @@
 @import "tailwindcss";
 
+@theme {
+  --portal-primary: #2680e6;
+  --portal-primary-soft: #d9f0ff;
+}
+
 @layer base {
+  * {
+    box-sizing: border-box;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    background-color: #f8fafc;
+    margin: 0;
+    min-width: 1366px;
+    background:
+      radial-gradient(circle at 10% 10%, rgba(211, 14, 135, 0.12), transparent 18%),
+      linear-gradient(135deg, rgba(19, 114, 199, 0.96) 0%, rgba(38, 128, 230, 0.76) 18%, rgba(136, 227, 255, 0.34) 38%, rgba(255, 255, 255, 0.95) 56%, rgba(226, 244, 255, 1) 74%, rgba(243, 249, 255, 1) 100%);
     color: #0f172a;
+    font-family: "Segoe UI", "Trebuchet MS", sans-serif;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 
-  ::-webkit-scrollbar-track {
-    background: transparent;
+  .field {
+    width: 100%;
+    border-radius: 1rem;
+    border: 1px solid #d9e8f6;
+    background: rgba(255, 255, 255, 0.94);
+    padding: 0.85rem 1rem;
+    font-size: 0.95rem;
+    color: #0f172a;
+    outline: none;
+    transition: 160ms ease;
   }
 
-  ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 9999px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+  .field:focus {
+    border-color: #2680e6;
+    box-shadow: 0 0 0 4px #d9f0ff;
   }
 }
