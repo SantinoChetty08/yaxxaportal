@@ -12,6 +12,7 @@ export function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const usesBackendAuth = import.meta.env.VITE_PORTAL_AUTH_MODE === "backend";
 
   const redirectTo = (location.state as { from?: string } | null)?.from ?? "/";
 
@@ -44,19 +45,23 @@ export function SignInPage() {
               <span className="text-[#52c930]">XXA</span>
             </p>
             <h2 className="mt-6 text-3xl font-semibold text-slate-950">Sign in</h2>
-            <p className="mt-2 text-sm text-slate-500">Use one of the portal credentials below to continue.</p>
+            <p className="mt-2 text-sm text-slate-500">
+              {usesBackendAuth ? "Use your assigned portal login to continue." : "Use one of the portal credentials below to continue."}
+            </p>
           </div>
 
-          <div className="mb-6 grid grid-cols-2 gap-3 rounded-3xl bg-slate-50 p-3 text-xs text-slate-600">
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <p className="font-semibold text-slate-900">Admin demo</p>
-              <p className="mt-1">`admin` / `Admin@123`</p>
+          {!usesBackendAuth ? (
+            <div className="mb-6 grid grid-cols-2 gap-3 rounded-3xl bg-slate-50 p-3 text-xs text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="font-semibold text-slate-900">Admin demo</p>
+                <p className="mt-1">`admin` / `Admin@123`</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="font-semibold text-slate-900">Viewer demo</p>
+                <p className="mt-1">`viewer` / `Viewer@123`</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <p className="font-semibold text-slate-900">Viewer demo</p>
-              <p className="mt-1">`viewer` / `Viewer@123`</p>
-            </div>
-          </div>
+          ) : null}
 
           <form
             className="space-y-5"

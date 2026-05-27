@@ -1,0 +1,17 @@
+[Unit]
+Description=Yaxxa Portal API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/yaxxaportal
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/yaxxaportal/.env.production
+ExecStart=/usr/bin/node /var/www/yaxxaportal/server/index.mjs
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

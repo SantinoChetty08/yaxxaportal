@@ -58,15 +58,17 @@ export function DashboardPage() {
       {metricsQuery.data ? (
         <div
           className={`rounded-2xl px-4 py-3 text-sm ${
-            metricsQuery.data.source === "db-bridge"
+            metricsQuery.data.source === "backend" || metricsQuery.data.source === "db-bridge"
               ? "bg-sky-50 text-sky-700"
               : metricsQuery.data.source === "yaxxa-api"
                 ? "bg-emerald-50 text-emerald-700"
                 : "bg-amber-50 text-amber-700"
           }`}
         >
-          {metricsQuery.data.source === "db-bridge"
-            ? "Live MariaDB replica data is active in read-only bridge mode."
+          {metricsQuery.data.source === "backend"
+            ? "Production backend mode is active. Live tenant data is flowing through the portal API service."
+            : metricsQuery.data.source === "db-bridge"
+              ? "Live MariaDB replica data is active in read-only bridge mode."
             : metricsQuery.data.source === "yaxxa-api"
               ? "Live Yaxxa API data is active for dashboard metrics."
               : "Dashboard is using mock fallback data. Add VITE_YAXXA_API_TOKEN to enable the documented Yaxxa Admin API endpoints."}

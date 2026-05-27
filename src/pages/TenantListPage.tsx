@@ -98,9 +98,11 @@ export function TenantListPage() {
         })} className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm" />
       </div>
 
-      <div className={`rounded-2xl px-4 py-3 text-sm ${metaQuery.data?.dataSource === "db-bridge" ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
-        {metaQuery.data?.dataSource === "db-bridge"
-          ? "Tenant data is coming from the live MariaDB replica through the local bridge. Status changes are disabled because the replica is read-only."
+      <div className={`rounded-2xl px-4 py-3 text-sm ${metaQuery.data?.dataSource === "db-bridge" || metaQuery.data?.dataSource === "backend" ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>
+        {metaQuery.data?.dataSource === "backend"
+          ? "Tenant data is coming from the production backend service. This UI remains read-only for tenant lifecycle changes until writable telecom admin endpoints are connected."
+          : metaQuery.data?.dataSource === "db-bridge"
+            ? "Tenant data is coming from the live MariaDB replica through the local bridge. Status changes are disabled because the replica is read-only."
           : "When VITE_YAXXA_API_TOKEN is configured, the tenant directory will pull live tenant and license data from the documented getLicenseSummary endpoint. Undocumented fields continue to use portal fallbacks."}
       </div>
 

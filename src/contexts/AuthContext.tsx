@@ -1,21 +1,24 @@
 import {
   createContext,
+  useEffect,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import type { AuthSession, PortalUserAccount } from "@/types";
-import { authenticatePortalUser } from "@/services/api";
+import { authenticatePortalUser, getCurrentPortalSession, logoutPortalUser } from "@/services/api";
 
 const STORAGE_KEY = "yaxxa-portal-session";
+const USES_BACKEND_AUTH = import.meta.env.VITE_PORTAL_AUTH_MODE === "backend";
 
 interface AuthContextValue {
   user: AuthSession | null;
+  isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
   signIn: (username: string, password: string) => Promise<AuthSession>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   reconcilePortalUser: (account: PortalUserAccount | null) => void;
 }
 
@@ -32,10 +35,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function bootstrap() {
+      const session = await getCurrentPortalSession();
+      if (!active) return;
+
+      if (session) {
+        setUser(session);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      } else if (USES_BACKEND_AUTH) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setUser(null);
+      } else {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as AuthSession;
+            setUser(parsed);
+          } catch {
+            window.localStorage.removeItem(STORAGE_KEY);
+            setUser(null);
+          }
+        }
+      }
+
+      setIsLoading(false);
+    }
+
+    bootstrap();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      isLoading,
       isAuthenticated: Boolean(user),
       isAdmin: user?.role === "admin",
       signIn: async (username: string, password: string) => {
@@ -44,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
         return session;
       },
-      signOut: () => {
+      signOut: async () => {
+        await logoutPortalUser();
         setUser(null);
         window.localStorage.removeItem(STORAGE_KEY);
       },
@@ -70,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       },
     }),
-    [user],
+    [isLoading, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

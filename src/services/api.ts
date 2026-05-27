@@ -30,12 +30,16 @@ import type {
 
 const delay = async (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 const PORTAL_DATA_SOURCE = import.meta.env.VITE_PORTAL_DATA_SOURCE ?? "mock";
+const PORTAL_AUTH_MODE = import.meta.env.VITE_PORTAL_AUTH_MODE ?? "mock";
+const PORTAL_API_BASE_URL = import.meta.env.VITE_PORTAL_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const YAXXA_API_BASE_URL = import.meta.env.VITE_YAXXA_API_BASE_URL?.replace(/\/$/, "") ?? "https://omni.yaxxa.co.za/YaxxaCC_api/v2.1";
 const YAXXA_API_TOKEN = import.meta.env.VITE_YAXXA_API_TOKEN ?? "";
 const YAXXA_API_TENANT_IDS = import.meta.env.VITE_YAXXA_API_TENANT_IDS
   ? import.meta.env.VITE_YAXXA_API_TENANT_IDS.split(",").map((value: string) => value.trim()).filter(Boolean)
   : [];
 const hasBridgeDataSource = PORTAL_DATA_SOURCE === "bridge";
+const hasBackendDataSource = PORTAL_DATA_SOURCE === "backend";
+const hasBackendAuth = PORTAL_AUTH_MODE === "backend";
 const hasYaxxaApiConfig = Boolean(YAXXA_API_TOKEN);
 
 let tenants = structuredClone(tenantsSeed);
@@ -87,8 +91,39 @@ async function getBridge<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function getBackendUrl(path: string) {
+  return `${PORTAL_API_BASE_URL}${path}`;
+}
+
+async function requestBackend<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(getBackendUrl(path), {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    let message = `Portal API request failed with HTTP ${response.status}`;
+    if (contentType.includes("application/json")) {
+      const payload = (await response.json()) as { error?: string };
+      message = payload.error ?? message;
+    }
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json() as Promise<T>;
+}
+
 function assertMutablePortal() {
-  if (hasBridgeDataSource) {
+  if (hasBridgeDataSource || hasBackendDataSource) {
     throw new Error("Live replica mode is read-only. Use the production admin API or backend service for changes.");
   }
 }
@@ -174,6 +209,10 @@ const filterTenants = (filters: TenantListFilters) => {
 };
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+  if (hasBackendDataSource) {
+    return requestBackend<DashboardMetrics>("/api/dashboard-metrics");
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<DashboardMetrics>("/dashboard-metrics");
   }
@@ -250,6 +289,13 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 }
 
 export async function authenticatePortalUser(input: { username: string; password: string }): Promise<AuthSession> {
+  if (hasBackendAuth) {
+    return requestBackend<AuthSession>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   await delay(300);
   const user = portalUsers.find(
     (entry) =>
@@ -273,12 +319,38 @@ export async function authenticatePortalUser(input: { username: string; password
   };
 }
 
+export async function getCurrentPortalSession(): Promise<AuthSession | null> {
+  if (!hasBackendAuth) return null;
+
+  try {
+    return await requestBackend<AuthSession>("/api/auth/me");
+  } catch {
+    return null;
+  }
+}
+
+export async function logoutPortalUser(): Promise<void> {
+  if (!hasBackendAuth) return;
+  await requestBackend<void>("/api/auth/logout", { method: "POST" });
+}
+
 export async function getPortalUsers(): Promise<PortalUserAccount[]> {
+  if (hasBackendAuth) {
+    return requestBackend<PortalUserAccount[]>("/api/admin/users");
+  }
+
   await delay(200);
   return [...portalUsers];
 }
 
 export async function createPortalUser(input: CreatePortalUserInput): Promise<PortalUserAccount> {
+  if (hasBackendAuth) {
+    return requestBackend<PortalUserAccount>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   await delay(300);
   const usernameTaken = portalUsers.some((user) => user.username.toLowerCase() === input.username.toLowerCase());
   const emailTaken = portalUsers.some((user) => user.email.toLowerCase() === input.email.toLowerCase());
@@ -303,6 +375,13 @@ export async function createPortalUser(input: CreatePortalUserInput): Promise<Po
 }
 
 export async function updatePortalUser(id: string, input: UpdatePortalUserInput): Promise<PortalUserAccount> {
+  if (hasBackendAuth) {
+    return requestBackend<PortalUserAccount>(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
   await delay(250);
   const user = portalUsers.find((entry) => entry.id === id);
   if (!user) throw new Error("Portal user not found.");
@@ -325,6 +404,13 @@ export async function updatePortalUser(id: string, input: UpdatePortalUserInput)
 }
 
 export async function resetPortalUserPassword(id: string, password: string): Promise<void> {
+  if (hasBackendAuth) {
+    return requestBackend<void>(`/api/admin/users/${id}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  }
+
   await delay(250);
   const user = portalUsers.find((entry) => entry.id === id);
   if (!user) throw new Error("Portal user not found.");
@@ -333,6 +419,13 @@ export async function resetPortalUserPassword(id: string, password: string): Pro
 }
 
 export async function setPortalUserStatus(id: string, status: UserStatus): Promise<PortalUserAccount> {
+  if (hasBackendAuth) {
+    return requestBackend<PortalUserAccount>(`/api/admin/users/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    });
+  }
+
   await delay(250);
   const user = portalUsers.find((entry) => entry.id === id);
   if (!user) throw new Error("Portal user not found.");
@@ -351,6 +444,12 @@ export async function setPortalUserStatus(id: string, status: UserStatus): Promi
 }
 
 export async function deletePortalUser(id: string): Promise<void> {
+  if (hasBackendAuth) {
+    return requestBackend<void>(`/api/admin/users/${id}`, {
+      method: "DELETE",
+    });
+  }
+
   await delay(250);
   const user = portalUsers.find((entry) => entry.id === id);
   if (!user) throw new Error("Portal user not found.");
@@ -373,6 +472,21 @@ export async function getRecentChanges(limit = 10): Promise<AuditEvent[]> {
 }
 
 export async function getTenants(filters: TenantListFilters = {}): Promise<PaginatedResult<Tenant>> {
+  if (hasBackendDataSource) {
+    return requestBackend<PaginatedResult<Tenant>>(
+      `/api/tenants${toQueryString({
+        q: filters.q,
+        status: filters.status,
+        licenseMin: filters.licenseMin,
+        licenseMax: filters.licenseMax,
+        createdFrom: filters.createdFrom,
+        createdTo: filters.createdTo,
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? 8,
+      })}`,
+    );
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<PaginatedResult<Tenant>>(
       `/tenants${toQueryString({
@@ -482,6 +596,10 @@ export async function getTenants(filters: TenantListFilters = {}): Promise<Pagin
 }
 
 export async function getTenantById(id: string): Promise<Tenant> {
+  if (hasBackendDataSource) {
+    return requestBackend<Tenant>(`/api/tenants/${id}`);
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<Tenant>(`/tenants/${id}`);
   }
@@ -493,6 +611,10 @@ export async function getTenantById(id: string): Promise<Tenant> {
 }
 
 export async function getTenantUsers(id: string): Promise<TenantUser[]> {
+  if (hasBackendDataSource) {
+    return requestBackend<TenantUser[]>(`/api/tenants/${id}/users`);
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<TenantUser[]>(`/tenants/${id}/users`);
   }
@@ -502,6 +624,10 @@ export async function getTenantUsers(id: string): Promise<TenantUser[]> {
 }
 
 export async function getTenantCampaigns(id: string): Promise<TenantCampaign[]> {
+  if (hasBackendDataSource) {
+    return requestBackend<TenantCampaign[]>(`/api/tenants/${id}/campaigns`);
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<TenantCampaign[]>(`/tenants/${id}/campaigns`);
   }
@@ -511,6 +637,10 @@ export async function getTenantCampaigns(id: string): Promise<TenantCampaign[]> 
 }
 
 export async function getTenantDids(id: string): Promise<DidRecord[]> {
+  if (hasBackendDataSource) {
+    return requestBackend<DidRecord[]>(`/api/tenants/${id}/dids`);
+  }
+
   if (hasBridgeDataSource) {
     return getBridge<DidRecord[]>(`/tenants/${id}/dids`);
   }
@@ -520,6 +650,10 @@ export async function getTenantDids(id: string): Promise<DidRecord[]> {
 }
 
 export async function getTenantAudit(id: string): Promise<AuditEvent[]> {
+  if (hasBackendDataSource) {
+    return [];
+  }
+
   if (hasBridgeDataSource) {
     return [];
   }
@@ -550,6 +684,24 @@ export async function updateTenantStatus(id: string, status: TenantStatus): Prom
 }
 
 export async function getDids(filters: DidFilters = {}): Promise<DidRecord[]> {
+  if (hasBackendDataSource) {
+    const results = await requestBackend<DidRecord[]>(
+      `/api/dids${toQueryString({
+        q: filters.q,
+        provider: filters.provider,
+        tenantId: filters.tenantId,
+      })}`,
+    );
+
+    return results.filter((did) => {
+      if (filters.country && did.country !== filters.country) return false;
+      if (filters.statuses && filters.statuses.length > 0 && !filters.statuses.includes(did.status)) return false;
+      if (filters.assignment === "assigned" && !did.tenantId) return false;
+      if (filters.assignment === "unassigned" && did.tenantId) return false;
+      return true;
+    });
+  }
+
   if (hasBridgeDataSource) {
     const results = await getBridge<DidRecord[]>(
       `/dids${toQueryString({
@@ -770,6 +922,30 @@ export async function createTenant(payload: CreateTenantInput): Promise<Tenant> 
 }
 
 export async function getAdminDashboard(): Promise<AdminDashboardData> {
+  if (hasBackendDataSource) {
+    const tenantResult = await getTenants({ page: 1, pageSize: 500 });
+    const liveTenants = tenantResult.items;
+    const allDids = await getDids({});
+
+    return {
+      nearCapTenants: liveTenants
+        .map((tenant) => ({
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+          allocated: tenant.licenseSeats,
+          inUse: tenant.licenseInUse,
+          utilization: Math.round((tenant.licenseInUse / Math.max(tenant.licenseSeats, 1)) * 100),
+        }))
+        .filter((tenant) => tenant.utilization >= 90)
+        .sort((a, b) => b.utilization - a.utilization),
+      unmappedDids: allDids.filter((did) => !did.provider || !did.trunk).slice(0, 100),
+      inactiveCampaigns: [],
+      tenantsWithZeroActiveAdmins: liveTenants.filter((tenant) => tenant.activeUsers === 0),
+      apiFailures: [],
+      overallHealth: liveTenants.some((tenant) => tenant.apiStatus === "error") ? "warning" : "healthy",
+    };
+  }
+
   if (hasBridgeDataSource) {
     const tenantResult = await getTenants({ page: 1, pageSize: 500 });
     const liveTenants = tenantResult.items;
@@ -831,6 +1007,24 @@ export async function getAdminDashboard(): Promise<AdminDashboardData> {
 }
 
 export async function getPortalMeta() {
+  if (hasBackendDataSource) {
+    const [tenantResult, liveDids] = await Promise.all([
+      getTenants({ page: 1, pageSize: 500 }),
+      getDids({ assignment: "unassigned" }),
+    ]);
+
+    return {
+      accountManagers,
+      dialplanTemplates,
+      profileTemplates,
+      tenants: tenantResult.items,
+      unassignedDids: liveDids,
+      hasLiveYaxxaApiConfig: false,
+      dataSource: "backend" as const,
+      isReadOnlyLiveData: true,
+    };
+  }
+
   if (hasBridgeDataSource) {
     const [tenantResult, liveDids] = await Promise.all([
       getTenants({ page: 1, pageSize: 500 }),

@@ -116,7 +116,7 @@ export interface DashboardMetrics {
   totalAllocatedDids: number;
   unassignedDids: number;
   totalCampaigns: number;
-  source?: "mock" | "yaxxa-api" | "db-bridge";
+  source?: "mock" | "yaxxa-api" | "db-bridge" | "backend";
 }
 
 export interface TenantListFilters {

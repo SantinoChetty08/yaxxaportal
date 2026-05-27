@@ -60,8 +60,8 @@ export function TopBar() {
             </div>
           </div>
           <button
-            onClick={() => {
-              signOut();
+            onClick={async () => {
+              await signOut();
               navigate("/sign-in");
             }}
             className="rounded-2xl border border-sky-100 bg-white/90 p-3 text-slate-500"
