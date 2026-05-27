@@ -35,7 +35,7 @@ SQL to create the auth tables is in:
 
 ## Environment Variables
 
-Use [.env.example](/C:/Users/SantinoChetty/Downloads/santinoflowbotv1-main/custom-tenant-management-portal/.env.example) as the template.
+Use [.env.production.example](/C:/Users/SantinoChetty/Downloads/santinoflowbotv1-main/custom-tenant-management-portal/.env.production.example) as the production template.
 
 Important production values:
 
@@ -76,11 +76,54 @@ npm run dev
 
 ## First-Time Database Setup
 
-1. Run the SQL migration in `deployment/sql/001_portal_auth.sql`.
-2. Create the first admin user:
+1. Create the writable auth database and DB user:
+
+```bash
+mysql -u root -p < deployment/sql/002_create_portal_auth_database.sql
+```
+
+2. Create the auth tables:
+
+```bash
+mysql -u root -p yaxxa_portal_auth < deployment/sql/001_portal_auth.sql
+```
+
+3. Copy the production env file and fill in the real secrets:
+
+```bash
+cp .env.production.example .env.production
+nano .env.production
+```
+
+4. Create the first admin user:
 
 ```bash
 npm run seed:admin
+```
+
+## Exact Ubuntu Server Flow
+
+```bash
+sudo apt update
+sudo apt install -y nginx curl git mysql-client
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+sudo mkdir -p /var/www
+cd /var/www
+sudo git clone https://github.com/SantinoChetty08/yaxxaportal.git yaxxaportal
+sudo chown -R $USER:$USER /var/www/yaxxaportal
+cd /var/www/yaxxaportal
+
+npm ci
+cp .env.production.example .env.production
+nano .env.production
+
+mysql -u root -p < deployment/sql/002_create_portal_auth_database.sql
+mysql -u root -p yaxxa_portal_auth < deployment/sql/001_portal_auth.sql
+
+npm run seed:admin
+npm run build
 ```
 
 ## Production Build
@@ -100,27 +143,21 @@ npm run start:api
 
 ## Nginx Example
 
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name portal.example.com;
+Copy the prepared site file:
 
-    root /var/www/yaxxaportal/dist;
-    index index.html;
+```bash
+sudo cp deployment/nginx/yaxxa-portal.conf /etc/nginx/sites-available/yaxxa-portal
+sudo ln -s /etc/nginx/sites-available/yaxxa-portal /etc/nginx/sites-enabled/yaxxa-portal
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
-    location /api/ {
-        proxy_pass http://127.0.0.1:8787/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+Then add HTTPS:
 
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d portal.example.com
 ```
 
 ## Systemd Service
@@ -128,6 +165,7 @@ server {
 Use:
 
 - [deployment/systemd/yaxxa-portal-api.service](/C:/Users/SantinoChetty/Downloads/santinoflowbotv1-main/custom-tenant-management-portal/deployment/systemd/yaxxa-portal-api.service)
+- [deployment/nginx/yaxxa-portal.conf](/C:/Users/SantinoChetty/Downloads/santinoflowbotv1-main/custom-tenant-management-portal/deployment/nginx/yaxxa-portal.conf)
 
 Typical flow:
 
